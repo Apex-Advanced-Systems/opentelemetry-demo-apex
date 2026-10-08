@@ -68,7 +68,7 @@ def get_product_list(request_product_ids):
     global first_run
     global cached_ids
     with tracer.start_as_current_span("get_product_list") as span:
-        max_responses = 5
+        max_responses = 0  # DELIBERATELY BROKEN: throwaway negative control
 
         # Formulate the list of characters to list of strings
         request_product_ids_str = ''.join(request_product_ids)

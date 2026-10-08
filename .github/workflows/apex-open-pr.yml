@@ -1,0 +1,70 @@
+# Apex development delivery: open one pull request as github-actions[bot].
+#
+# Dispatched by the Apex development delivery executor (TCF-COMPOUND-1 phase B2,
+# Tim's decision "1 B", 2026-10-08) with GITHUB_TOKEN, so the PR author is
+# github-actions[bot] and the operator credential can approve it. The approval
+# is mechanical, not independent review. Provenance copy and sha256 pin live in
+# Apex (apex/profiles/astronomy-recommendation/fork/apex-open-pr.yml); the
+# executor refuses to dispatch when this file on main differs from the pin.
+#
+# It opens a PR and nothing else: no checkout, no actions, no secrets. It
+# refuses any repository other than this fork, any ref other than main, any
+# base other than apex-experiment/recommendation and any head other than
+# apex-experiment/cycle-<n>-<12 hex>.
+name: Apex open PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      head:
+        description: Head branch, apex-experiment/cycle-<n>-<12 hex>
+        required: true
+        type: string
+      base:
+        description: Base branch, apex-experiment/recommendation only
+        required: true
+        type: string
+      title:
+        description: Pull request title
+        required: true
+        type: string
+      body:
+        description: Pull request body
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  open-pr:
+    name: Open Apex development PR
+    if: github.repository == 'Apex-Advanced-Systems/opentelemetry-demo-apex' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Refuse any other head or base, then open the PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_REF: ${{ inputs.head }}
+          BASE_REF: ${{ inputs.base }}
+          PR_TITLE: ${{ inputs.title }}
+          PR_BODY: ${{ inputs.body }}
+        run: |
+          set -euo pipefail
+          if [ "$BASE_REF" != "apex-experiment/recommendation" ]; then
+            echo "refused: base must be apex-experiment/recommendation" >&2
+            exit 1
+          fi
+          if ! [[ "$HEAD_REF" =~ ^apex-experiment/cycle-[1-9][0-9]{0,3}-[0-9a-f]{12}$ ]]; then
+            echo "refused: head must match apex-experiment/cycle-<n>-<12 hex>" >&2
+            exit 1
+          fi
+          gh pr create \
+            --repo "$REPOSITORY" \
+            --head "$HEAD_REF" \
+            --base "$BASE_REF" \
+            --title "$PR_TITLE" \
+            --body "$PR_BODY"

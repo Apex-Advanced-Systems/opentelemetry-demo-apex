@@ -1,0 +1,65 @@
+# REHEARSAL COPY of apex-open-pr.yml (Tim, 2026-10-08, "Do 1 and 3").
+#
+# Throwaway. Byte-identical to apex-open-pr.yml from "on:" down except the base
+# input description and the base guard, which admits only
+# apex-experiment/rehearsal-20261008, so the real PR
+# path can be rehearsed without a PR into apex-experiment/recommendation. The
+# pinned apex-open-pr.yml is unchanged and still refuses any other base. Apex
+# does not pin or dispatch this file. Delete it after the rehearsal.
+name: Apex open PR (rehearsal 20261008)
+
+on:
+  workflow_dispatch:
+    inputs:
+      head:
+        description: Head branch, apex-experiment/cycle-<n>-<12 hex>
+        required: true
+        type: string
+      base:
+        description: Base branch, apex-experiment/rehearsal-20261008 only
+        required: true
+        type: string
+      title:
+        description: Pull request title
+        required: true
+        type: string
+      body:
+        description: Pull request body
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  open-pr:
+    name: Open Apex development PR
+    if: github.repository == 'Apex-Advanced-Systems/opentelemetry-demo-apex' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Refuse any other head or base, then open the PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_REF: ${{ inputs.head }}
+          BASE_REF: ${{ inputs.base }}
+          PR_TITLE: ${{ inputs.title }}
+          PR_BODY: ${{ inputs.body }}
+        run: |
+          set -euo pipefail
+          if [ "$BASE_REF" != "apex-experiment/rehearsal-20261008" ]; then
+            echo "refused: base must be apex-experiment/rehearsal-20261008" >&2
+            exit 1
+          fi
+          if ! [[ "$HEAD_REF" =~ ^apex-experiment/cycle-[1-9][0-9]{0,3}-[0-9a-f]{12}$ ]]; then
+            echo "refused: head must match apex-experiment/cycle-<n>-<12 hex>" >&2
+            exit 1
+          fi
+          gh pr create \
+            --repo "$REPOSITORY" \
+            --head "$HEAD_REF" \
+            --base "$BASE_REF" \
+            --title "$PR_TITLE" \
+            --body "$PR_BODY"

@@ -19,7 +19,7 @@ import sys
 
 import pytest
 
-SERVICE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+SERVICE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 if SERVICE_DIR not in sys.path:
     sys.path.insert(0, SERVICE_DIR)
 

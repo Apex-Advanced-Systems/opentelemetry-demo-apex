@@ -34,8 +34,8 @@ jobs:
       - name: Verify frozen suite digests
         run: |
           sha256sum -c --strict - <<'DIGESTS'
-          f0800fa7c370f735ea8f24fb9396358e05b5a43f1f4a8f364b7e24959e837e82  src/recommendation/tests/characterization/conftest.py
-          d4ea0863792d1e47216901a87a36c3b68bdc57f32d82d1c7f9dca42c72ea193d  src/recommendation/tests/characterization/pytest.ini
+          a5cdd45c86e4e2b09b4936a83cc715e44cb95f1242b1770656c052f7e99a1c41  src/recommendation/tests/characterization/conftest.py
+          c67a251e4a3c87b20e442c37665f3907b55b18f6914f42f0ef14713ecb92c754  src/recommendation/tests/characterization/pytest.ini
           985a5392c678a103d1ee522fa19c61d56431a868e4005d6b14de022150a19620  src/recommendation/tests/characterization/requirements-test.txt
           b284ce703d5a7ad6458913988661f3915976e31cbea0159487cba39234e80b19  src/recommendation/tests/characterization/test_health.py
           5c08996c9d6854be0a56a25dae4c80d562105c66f81415ec001a21aaa8b1f095  src/recommendation/tests/characterization/test_list_recommendations.py

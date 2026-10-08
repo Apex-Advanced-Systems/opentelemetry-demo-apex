@@ -1,0 +1,162 @@
+# Apex fork second check: the recommendation cycle's verification, re-run on a
+# GitHub-hosted runner for one exact commit.
+#
+# Approved: Tim, 2026-10-08, "Do 1 and 3".
+#
+# INDEPENDENT SECOND CHECK, NOT AUTHORITY. Apex's own local cycle verification
+# stays authoritative. This workflow's commit status is advisory evidence that
+# the operator can see on a cycle PR before he approves it. It is not a
+# required check, and no Apex gate reads it.
+#
+# Trigger: workflow_dispatch only, with the exact 40-hex head SHA. It never runs
+# on pull_request or pull_request_target. It lives on main, so the tree of
+# apex-experiment/recommendation stays at S0.
+#
+# At that SHA it runs what the local cycle verification runs:
+#  - the Apex delivery pins: the sha256 of the characterization workflow
+#    (d8c74b26..., the S0 bytes) and the git blob ids of the five frozen suite
+#    files;
+#  - the frozen suite's sha256 digests and its exact file set, copied from the
+#    S0 characterization workflow;
+#  - the hash-pinned service and test requirements (--require-hashes);
+#  - the profile's test argv on Python 3.12.12, the local foundry interpreter:
+#    python -m pytest src/recommendation/tests/characterization -q -p no:cacheprovider
+#    The push-triggered characterization workflow covers Python 3.14.7.
+# The recommendation service has no tests beyond the frozen suite.
+#
+# The check job has contents: read only, uses no secrets, and checks out the
+# head without persisting credentials. A separate report job checks out nothing
+# and has statuses: write only. It posts one commit status on the SHA with the
+# automatic GITHUB_TOKEN, which is not a stored secret.
+name: Apex fork second check
+
+on:
+  workflow_dispatch:
+    inputs:
+      head_sha:
+        description: Exact 40-hex commit to check
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: apex-fork-second-check-${{ inputs.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Recommendation second check
+    if: github.repository == 'Apex-Advanced-Systems/opentelemetry-demo-apex' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read  # checkout of the head only
+    steps:
+      - name: Refuse anything but a 40-hex SHA
+        env:
+          HEAD_SHA: ${{ inputs.head_sha }}
+        run: |
+          if ! [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "refused: head_sha must be 40 lowercase hex" >&2
+            exit 1
+          fi
+      - name: Checkout the exact head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.head_sha }}
+          persist-credentials: false
+      - name: Confirm the checkout is the exact head
+        env:
+          HEAD_SHA: ${{ inputs.head_sha }}
+        run: |
+          actual=$(git rev-parse HEAD)
+          if [ "$actual" != "$HEAD_SHA" ]; then
+            echo "refused: checked out $actual, expected $HEAD_SHA" >&2
+            exit 1
+          fi
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12.12'
+      - name: Verify the Apex delivery pins
+        run: |
+          set -euo pipefail
+          echo "d8c74b262eecbbf6ec46fcf0bbe1ec399f07eccb4289c075bc26e45df048ff4e  .github/workflows/apex-recommendation-characterization.yml" \
+            | sha256sum -c --strict -
+          while read -r blob path; do
+            actual=$(git rev-parse "HEAD:$path")
+            if [ "$actual" != "$blob" ]; then
+              echo "suite blob changed: $path is $actual, pinned $blob" >&2
+              exit 1
+            fi
+          done <<'BLOBS'
+          0e9daef9d27189160b01bddeee368f5d0104ed3b src/recommendation/tests/characterization/conftest.py
+          a684d307db0c727a8166869c73272cce7b172489 src/recommendation/tests/characterization/pytest.ini
+          8ca88e262ab5dc28eeab29c886b2aeaef0ac8732 src/recommendation/tests/characterization/requirements-test.txt
+          c8c47b0843cb69f64bff6d0c596bdac770aaed85 src/recommendation/tests/characterization/test_health.py
+          b9bd3d63b1604ca52615e16eeb4e5257abb0b492 src/recommendation/tests/characterization/test_list_recommendations.py
+          BLOBS
+      - name: Verify frozen suite digests
+        run: |
+          sha256sum -c --strict - <<'DIGESTS'
+          a5cdd45c86e4e2b09b4936a83cc715e44cb95f1242b1770656c052f7e99a1c41  src/recommendation/tests/characterization/conftest.py
+          c67a251e4a3c87b20e442c37665f3907b55b18f6914f42f0ef14713ecb92c754  src/recommendation/tests/characterization/pytest.ini
+          985a5392c678a103d1ee522fa19c61d56431a868e4005d6b14de022150a19620  src/recommendation/tests/characterization/requirements-test.txt
+          b284ce703d5a7ad6458913988661f3915976e31cbea0159487cba39234e80b19  src/recommendation/tests/characterization/test_health.py
+          5c08996c9d6854be0a56a25dae4c80d562105c66f81415ec001a21aaa8b1f095  src/recommendation/tests/characterization/test_list_recommendations.py
+          DIGESTS
+      - name: Verify frozen suite file set
+        run: |
+          expected='src/recommendation/tests/characterization/conftest.py
+          src/recommendation/tests/characterization/pytest.ini
+          src/recommendation/tests/characterization/requirements-test.txt
+          src/recommendation/tests/characterization/test_health.py
+          src/recommendation/tests/characterization/test_list_recommendations.py'
+          actual=$(find src/recommendation/tests -type f | LC_ALL=C sort)
+          expected=$(printf '%s\n' "$expected" | sed 's/^ *//' | LC_ALL=C sort)
+          if [ "$actual" != "$expected" ]; then
+            echo "unexpected file set under src/recommendation/tests:"
+            diff <(echo "$expected") <(echo "$actual") || true
+            exit 1
+          fi
+      - name: Install pinned service and test requirements
+        run: |
+          python -m pip install --require-hashes -r src/recommendation/requirements.txt
+          python -m pip install --require-hashes -r src/recommendation/tests/characterization/requirements-test.txt
+      - name: Run the profile's acceptance command
+        run: python -m pytest src/recommendation/tests/characterization -q -p no:cacheprovider
+
+  report:
+    name: Post the second-check status
+    needs: check
+    if: always() && github.repository == 'Apex-Advanced-Systems/opentelemetry-demo-apex' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      statuses: write  # one commit status on the exact head
+    steps:
+      - name: Post one commit status on the exact head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          RESULT: ${{ needs.check.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "refused: head_sha must be 40 lowercase hex" >&2
+            exit 1
+          fi
+          case "$RESULT" in
+            success) state=success; description="Second check passed (advisory; Apex verification is authoritative)" ;;
+            failure) state=failure; description="Second check failed (advisory; Apex verification is authoritative)" ;;
+            *) state=error; description="Second check did not complete: $RESULT (advisory)" ;;
+          esac
+          gh api --method POST "repos/$REPOSITORY/statuses/$HEAD_SHA" \
+            -f state="$state" \
+            -f context="apex-fork-second-check / recommendation" \
+            -f description="$description" \
+            -f target_url="$RUN_URL" > /dev/null
+          echo "posted $state on $HEAD_SHA"

@@ -39,6 +39,10 @@ from metrics import (
 cached_ids = []
 first_run = True
 
+# Upper bound, in seconds, for every outbound product catalog call. Without it
+# a stalled catalog would hold a request thread until the client gives up.
+PRODUCT_CATALOG_TIMEOUT_SECONDS = 5.0
+
 class RecommendationService(demo_pb2_grpc.RecommendationServiceServicer):
     def ListRecommendations(self, request, context):
         prod_list = get_product_list(request.product_ids)
@@ -81,7 +85,8 @@ def get_product_list(request_product_ids):
                 first_run = False
                 span.set_attribute("demo.recommendation.cache_hit", False)
                 logger.info("get_product_list: cache miss")
-                cat_response = product_catalog_stub.ListProducts(demo_pb2.Empty())
+                cat_response = product_catalog_stub.ListProducts(
+                    demo_pb2.Empty(), timeout=PRODUCT_CATALOG_TIMEOUT_SECONDS)
                 response_ids = [x.id for x in cat_response.products]
                 cached_ids = cached_ids + response_ids
                 cached_ids = cached_ids + cached_ids[:len(cached_ids) // 4]
@@ -92,7 +97,8 @@ def get_product_list(request_product_ids):
                 product_ids = cached_ids
         else:
             span.set_attribute("demo.feature_flag.recommendation_cache", False)
-            cat_response = product_catalog_stub.ListProducts(demo_pb2.Empty())
+            cat_response = product_catalog_stub.ListProducts(
+                demo_pb2.Empty(), timeout=PRODUCT_CATALOG_TIMEOUT_SECONDS)
             product_ids = [x.id for x in cat_response.products]
 
         span.set_attribute("demo.product.count", len(product_ids))

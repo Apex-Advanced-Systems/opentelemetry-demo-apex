@@ -39,6 +39,14 @@ from metrics import (
 cached_ids = []
 first_run = True
 
+# Deadline applied to every outbound product catalog RPC. Without a deadline a
+# stalled catalog holds the serving worker thread open indefinitely, which
+# exhausts the gRPC thread pool instead of surfacing the upstream failure.
+PRODUCT_CATALOG_TIMEOUT_SECONDS = 5.0
+
+# Deadline applied to outbound OTLP log export calls.
+OTLP_EXPORT_TIMEOUT_SECONDS = 10.0
+
 class RecommendationService(demo_pb2_grpc.RecommendationServiceServicer):
     def ListRecommendations(self, request, context):
         prod_list = get_product_list(request.product_ids)
@@ -81,7 +89,8 @@ def get_product_list(request_product_ids):
                 first_run = False
                 span.set_attribute("demo.recommendation.cache_hit", False)
                 logger.info("get_product_list: cache miss")
-                cat_response = product_catalog_stub.ListProducts(demo_pb2.Empty())
+                cat_response = product_catalog_stub.ListProducts(
+                    demo_pb2.Empty(), timeout=PRODUCT_CATALOG_TIMEOUT_SECONDS)
                 response_ids = [x.id for x in cat_response.products]
                 cached_ids = cached_ids + response_ids
                 cached_ids = cached_ids + cached_ids[:len(cached_ids) // 4]
@@ -92,7 +101,8 @@ def get_product_list(request_product_ids):
                 product_ids = cached_ids
         else:
             span.set_attribute("demo.feature_flag.recommendation_cache", False)
-            cat_response = product_catalog_stub.ListProducts(demo_pb2.Empty())
+            cat_response = product_catalog_stub.ListProducts(
+                demo_pb2.Empty(), timeout=PRODUCT_CATALOG_TIMEOUT_SECONDS)
             product_ids = [x.id for x in cat_response.products]
 
         span.set_attribute("demo.product.count", len(product_ids))
@@ -141,7 +151,7 @@ if __name__ == "__main__":
         resource = Resource.create({}),
     )
     set_logger_provider(logger_provider)
-    log_exporter = OTLPLogExporter(insecure=True)
+    log_exporter = OTLPLogExporter(insecure=True, timeout=OTLP_EXPORT_TIMEOUT_SECONDS)
     logger_provider.add_log_record_processor(BatchLogRecordProcessor(log_exporter))
     handler = LoggingHandler(level=logging.NOTSET, logger_provider=logger_provider)
 

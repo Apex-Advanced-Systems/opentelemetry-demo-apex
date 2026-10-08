@@ -2,6 +2,7 @@
 
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
+# Apex rehearsal 20261008: harmless comment only (Tim, 2026-10-08, "Do 1 and 3").
 
 import logging
 import sys

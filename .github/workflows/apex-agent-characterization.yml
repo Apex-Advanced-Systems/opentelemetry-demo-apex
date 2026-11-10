@@ -1,0 +1,68 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+name: Apex agent characterization
+
+on:
+  push:
+    branches: ['apex-experiment/**']
+  pull_request:
+    branches: ['apex-experiment/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  characterization:
+    name: Agent characterization suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.14.7'
+      # Pins the frozen suite files. This workflow cannot hash itself; its own
+      # digest is pinned out of band in the Apex profile.
+      - name: Verify frozen suite digests
+        run: |
+          sha256sum -c --strict - <<'DIGESTS'
+          94d9fa59cc48cc6e9fb58335a491fd6b16e51582736daef8c37a9ddefa9b11af  src/agent/tests/characterization/conftest.py
+          917ee11f5a76611acfa9545a39f3e1adfef250f5bf5950d0577b45d155a081b2  src/agent/tests/characterization/pytest.ini
+          627181a463e16178b030251bad4a15ad0dc9b2e30ffd898add41082883d4ef67  src/agent/tests/characterization/requirements-test.txt
+          6bf20ad12764005c0a7f6e3871a1e34748f93626726461b350f19a013f7b9145  src/agent/tests/characterization/test_sanitycheck.py
+          b3b40a150f3eed0281c893314948ba05e3b357a8261c1cf28d9ae27f04b0aee3  src/agent/tests/characterization/test_shared_tools.py
+          DIGESTS
+      # The frozen suite is exactly these five files: any added file under
+      # src/agent/tests (for example a conftest or test module) fails. The suite
+      # collects nothing outside src/agent/tests/characterization.
+      - name: Verify frozen suite file set
+        run: |
+          expected='src/agent/tests/characterization/conftest.py
+          src/agent/tests/characterization/pytest.ini
+          src/agent/tests/characterization/requirements-test.txt
+          src/agent/tests/characterization/test_sanitycheck.py
+          src/agent/tests/characterization/test_shared_tools.py'
+          actual=$(find src/agent/tests -type f | LC_ALL=C sort)
+          expected=$(printf '%s\n' "$expected" | sed 's/^ *//' | LC_ALL=C sort)
+          if [ "$actual" != "$expected" ]; then
+            echo "unexpected file set under src/agent/tests:"
+            diff <(echo "$expected") <(echo "$actual") || true
+            exit 1
+          fi
+      - name: Install pinned service and test requirements
+        run: |
+          python -m pip install --require-hashes -r src/agent/requirements.txt
+          python -m pip install --require-hashes -r src/agent/tests/characterization/requirements-test.txt
+      - name: Run characterization suite
+        env:
+          # The suite needs no plugins; refuse plugins pulled in by service deps.
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+        run: python -B -m pytest src/agent/tests/characterization -q -p no:cacheprovider

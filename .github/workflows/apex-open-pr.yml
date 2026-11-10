@@ -9,8 +9,8 @@
 #
 # It opens a PR and nothing else: no checkout, no actions, no secrets. It
 # refuses any repository other than this fork, any ref other than main, any
-# base other than apex-experiment/recommendation and any head other than
-# apex-experiment/cycle-<n>-<12 hex>.
+# base other than apex-experiment/recommendation or apex-experiment/agent and
+# any head other than apex-experiment/cycle-<n>-<12 hex>.
 name: Apex open PR
 
 on:
@@ -21,7 +21,7 @@ on:
         required: true
         type: string
       base:
-        description: Base branch, apex-experiment/recommendation only
+        description: Base branch, apex-experiment/recommendation or apex-experiment/agent
         required: true
         type: string
       title:
@@ -54,10 +54,13 @@ jobs:
           PR_BODY: ${{ inputs.body }}
         run: |
           set -euo pipefail
-          if [ "$BASE_REF" != "apex-experiment/recommendation" ]; then
-            echo "refused: base must be apex-experiment/recommendation" >&2
-            exit 1
-          fi
+          case "$BASE_REF" in
+            apex-experiment/recommendation|apex-experiment/agent) ;;
+            *)
+              echo "refused: base must be apex-experiment/recommendation or apex-experiment/agent" >&2
+              exit 1
+              ;;
+          esac
           if ! [[ "$HEAD_REF" =~ ^apex-experiment/cycle-[1-9][0-9]{0,3}-[0-9a-f]{12}$ ]]; then
             echo "refused: head must match apex-experiment/cycle-<n>-<12 hex>" >&2
             exit 1

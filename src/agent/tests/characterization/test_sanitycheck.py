@@ -11,7 +11,9 @@ import subprocess
 import sys
 
 import pytest
-from conftest import SANITYCHECK_PATH
+from pathlib import Path
+
+SANITYCHECK_PATH = Path(__file__).resolve().parents[4] / "internal" / "tools" / "sanitycheck.py"
 
 
 def check(cwd, files):

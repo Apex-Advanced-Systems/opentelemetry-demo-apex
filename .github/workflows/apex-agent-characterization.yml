@@ -39,7 +39,7 @@ jobs:
           627181a463e16178b030251bad4a15ad0dc9b2e30ffd898add41082883d4ef67  src/agent/tests/characterization/requirements-test.txt
           30f42aec072d47afee7dd62ae6c679b6d27c335a39310f3f01031e8586c6ef43  src/agent/tests/characterization/test_feature_flags.py
           73aa496a2b7234681ef8e4d861e851a14af06bbdb97548b9b6a8e0ee924967a8  src/agent/tests/characterization/test_patch_vcr.py
-          44b05f2ff29257a2619c7b4bcbef262827a92d2b528ef96d81ad0d66a165868c  src/agent/tests/characterization/test_sanitycheck.py
+          d379b0618e59a6849672a91e0986e0f76ae375897c9f1d1a25401acef060dc78  src/agent/tests/characterization/test_sanitycheck.py
           b3b40a150f3eed0281c893314948ba05e3b357a8261c1cf28d9ae27f04b0aee3  src/agent/tests/characterization/test_shared_tools.py
           DIGESTS
       # The frozen suite is exactly these seven files: any added file under

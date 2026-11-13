@@ -30,9 +30,18 @@ def check(cwd, files):
     )
 
 
+def startup_output(cwd):
+    # What this interpreter prints before any script runs, such as a test harness's
+    # sitecustomize. "Silently" means sanitycheck.py adds nothing to it.
+    done = subprocess.run(
+        [sys.executable, "-B", "-c", "pass"], cwd=cwd, capture_output=True, text=True, check=True
+    )
+    return done.stdout, done.stderr
+
+
 def test_a_clean_tree_passes_silently(tmp_path):
     done = check(tmp_path, {"a/x.py": b"x = 1\n", "README.md": b"# t\n"})
-    assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
+    assert (done.returncode, done.stdout, done.stderr) == (0, *startup_output(tmp_path))
 
 
 def test_an_empty_file_fails(tmp_path):

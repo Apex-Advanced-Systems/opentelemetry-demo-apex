@@ -46,8 +46,9 @@ def normalize_body(request):
             request.headers = {}
             request.uri = "https://vcr.local/"
             request.method = "POST"
-    except Exception:
-        pass
+    except Exception as exc:
+        # A body that isn't JSON is recorded as-is; keep the request usable.
+        logging.debug("VCR: leaving request body un-normalized (%s)", exc)
     return request
 
 
@@ -92,8 +93,9 @@ def clean_response(response):
             message.pop("annotations", None)
 
         response["body"]["string"] = json.dumps(data, sort_keys=True)
-    except Exception:
-        pass
+    except Exception as exc:
+        # A body that isn't a JSON payload is recorded verbatim.
+        logging.debug("VCR: leaving response body un-normalized (%s)", exc)
     return response
 
 
@@ -113,11 +115,13 @@ def _parse_body(request):
     if hasattr(body, "decode"):
         try:
             body = body.decode("utf-8")
-        except Exception:
+        except Exception as exc:
+            logging.debug("VCR: request body is not utf-8 text (%s)", exc)
             return None
     try:
         return json.loads(body)
-    except Exception:
+    except Exception as exc:
+        logging.debug("VCR: request body is not JSON (%s)", exc)
         return None
 
 
@@ -225,7 +229,11 @@ def _install_best_match_playback():
                 continue
             try:
                 score = body_similarity(recorded, request)
-            except Exception:
+            except Exception as exc:
+                # An unscorable recording simply never wins the match.
+                logging.debug(
+                    "VCR: could not score cassette entry %d (%s)", idx, exc
+                )
                 score = 0.0
             if score >= VCR_MATCH_THRESHOLD and score > best_score:
                 best_score = score

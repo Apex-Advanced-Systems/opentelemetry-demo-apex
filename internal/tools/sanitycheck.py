@@ -54,11 +54,8 @@ def sanitycheck(pattern, allow_utf8 = False, allow_eol = (CRLF, LF), indent = 1)
                         error.append('  Line ending {} not allowed at Ln:{}'.format(eol, lineno))
                         break
                 if line.startswith(b' '):
-                    spc_count = 0
-                    for c in line:
-                        if c != 32:
-                            break
-                        spc_count += 1
+                    # Count the leading spaces without a third nested loop.
+                    spc_count = len(line) - len(line.lstrip(b' '))
                     if not indent or (spc_count % indent and os.path.basename(filename) != 'rebar.config'):
                         error.append('  {} SPC found at Ln:{} {}'.format(spc_count, lineno, line))
                 if line[-1:] == b' ' or line[-1:] == b'\t':
